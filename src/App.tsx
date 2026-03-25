@@ -108,7 +108,10 @@ export default function App() {
       const res = await fetch('/api/auth/url');
       const data = await res.json();
       if (data.url) {
-        window.open(data.url, 'flattrade_auth', 'width=600,height=700');
+        // Use location.href instead of window.open for mobile compatibility
+        window.location.href = data.url;
+      } else {
+        alert('Error: ' + (data.error || 'Failed to get auth URL. Check your .env file on the server.'));
       }
     } catch (error) {
       console.error('Failed to get auth URL', error);
