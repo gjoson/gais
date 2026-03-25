@@ -2,18 +2,13 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import crypto from 'crypto';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import fs from 'fs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Try loading from multiple possible locations
 const envPaths = [
   path.join(process.cwd(), '.env'),
-  path.join(__dirname, '.env'),
-  path.join(__dirname, '../.env'),
+  path.join(process.cwd(), '../.env'),
   '/home/ubuntu/gais/.env',
   '/home/ubuntu/.env'
 ];
@@ -42,17 +37,15 @@ async function startServer() {
   });
 
   app.get('/api/debug-env', (req, res) => {
-    const fs = require('fs');
     const cwd = process.cwd();
     const envPath = path.join(cwd, '.env');
     const envExists = fs.existsSync(envPath);
     const envContent = envExists ? fs.readFileSync(envPath, 'utf8') : null;
-    const distEnvPath = path.join(__dirname, '../.env');
+    const distEnvPath = path.join(cwd, '../.env');
     const distEnvExists = fs.existsSync(distEnvPath);
     
     res.json({ 
       cwd, 
-      __dirname, 
       envExists, 
       distEnvExists,
       envPath,
@@ -87,11 +80,27 @@ async function startServer() {
   app.get('/api/auth/url', (req, res) => {
     const apiKey = getEnvVar('FLATTRADE_API_KEY');
     if (!apiKey) {
-      return res.status(500).json({ error: 'FLATTRADE_API_KEY not configured' });
+      const checkedPaths = envPaths.map(p => {
+        const exists = fs.existsSync(p);
+        return `${p} (${exists ? 'exists' : 'missing'})`;
+      });
+      return res.status(500).json({ 
+        error: `FLATTRADE_API_KEY not found. Checked: ${checkedPaths.join(', ')}. Process.env keys: ${Object.keys(process.env).filter(k => k.includes('FLATTRADE')).join(',')}` 
+      });
     }
     const authUrl = `https://auth.flattrade.in/?app_key=${apiKey}`;
     res.json({ url: authUrl });
   });
+
+  const parseCookies = (cookieHeader: string | undefined) => {
+    if (!cookieHeader) return {};
+    return cookieHeader.split(';').reduce((res, c) => {
+      const parts = c.trim().split('=');
+      const key = parts[0];
+      const val = parts.slice(1).join('=');
+      return Object.assign(res, { [key]: decodeURIComponent(val) });
+    }, {} as Record<string, string>);
+  };
 
   app.get('/api/auth/flattrade/callback', async (req, res) => {
     const requestCode = req.query.code as string;
@@ -105,11 +114,12 @@ async function startServer() {
       flattradeUid = clientUid;
     }
 
-    const apiKey = getEnvVar('FLATTRADE_API_KEY');
-    const apiSecret = getEnvVar('FLATTRADE_API_SECRET');
+    const cookies = parseCookies(req.headers.cookie);
+    const apiKey = cookies.flattrade_api_key || getEnvVar('FLATTRADE_API_KEY');
+    const apiSecret = cookies.flattrade_api_secret || getEnvVar('FLATTRADE_API_SECRET');
 
     if (!apiKey || !apiSecret) {
-      return res.status(500).send('API credentials not configured');
+      return res.status(500).send('API credentials not configured in .env or cookies. Please set them in the UI settings.');
     }
 
     try {
@@ -244,7 +254,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, '..', 'dist');
+    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

@@ -41,6 +41,9 @@ const dummyChartData = [
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [localApiKey, setLocalApiKey] = useState(localStorage.getItem('flattrade_api_key') || '');
+  const [localApiSecret, setLocalApiSecret] = useState(localStorage.getItem('flattrade_api_secret') || '');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [marginData, setMarginData] = useState<any>(null);
   const [niftyData, setNiftyData] = useState<any>(null);
@@ -105,18 +108,33 @@ export default function App() {
 
   const handleLogin = async () => {
     try {
+      if (localApiKey && localApiSecret) {
+        // Use local storage keys first
+        document.cookie = `flattrade_api_key=${encodeURIComponent(localApiKey)}; path=/; max-age=3600`;
+        document.cookie = `flattrade_api_secret=${encodeURIComponent(localApiSecret)}; path=/; max-age=3600`;
+        window.location.href = `https://auth.flattrade.in/?app_key=${localApiKey}`;
+        return;
+      }
+
+      // Fallback to get URL from backend (uses .env)
       const res = await fetch('/api/auth/url');
       const data = await res.json();
+      
       if (data.url) {
-        // Use location.href instead of window.open for mobile compatibility
         window.location.href = data.url;
       } else {
-        alert('Error: ' + (data.error || 'Failed to get auth URL. Check your .env file on the server.'));
+        setShowSettings(true);
       }
     } catch (error) {
       console.error('Failed to get auth URL', error);
-      alert('Failed to initiate login. Check console and ensure environment variables are set.');
+      setShowSettings(true);
     }
+  };
+
+  const saveSettings = () => {
+    localStorage.setItem('flattrade_api_key', localApiKey);
+    localStorage.setItem('flattrade_api_secret', localApiSecret);
+    setShowSettings(false);
   };
 
   const handleLogout = async () => {
@@ -141,7 +159,14 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-950 transition-colors duration-300">
-        <div className="absolute top-4 right-4">
+        <div className="absolute top-4 right-4 flex gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 rounded-full bg-white/20 dark:bg-black/20 backdrop-blur-md border border-white/30 dark:border-white/10 shadow-lg text-slate-800 dark:text-slate-200 hover:bg-white/30 dark:hover:bg-black/30 transition-all"
+            title="Settings"
+          >
+            <Settings size={20} />
+          </button>
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="p-2 rounded-full bg-white/20 dark:bg-black/20 backdrop-blur-md border border-white/30 dark:border-white/10 shadow-lg text-slate-800 dark:text-slate-200 hover:bg-white/30 dark:hover:bg-black/30 transition-all"
@@ -150,24 +175,69 @@ export default function App() {
           </button>
         </div>
         
-        <div className="w-full max-w-md p-8 rounded-3xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] text-center">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Activity className="text-white" size={40} />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Pro Algo Trading</h1>
-          <p className="text-slate-600 dark:text-slate-400 mb-8">Connect your Flattrade account to access the trading terminal.</p>
+        <div className="w-full max-w-md p-8 rounded-3xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] text-center relative overflow-hidden">
           
-          <button
-            onClick={handleLogin}
-            className="w-full py-4 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 flex items-center justify-center gap-2"
-          >
-            <Wallet size={20} />
-            Connect Flattrade
-          </button>
-          
-          <p className="mt-6 text-sm text-slate-500 dark:text-slate-500">
-            Token is valid until 6 AM the next day.
-          </p>
+          {showSettings ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6">API Settings</h2>
+              <div className="space-y-4 text-left">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">API Key</label>
+                  <input 
+                    type="text" 
+                    value={localApiKey}
+                    onChange={(e) => setLocalApiKey(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    placeholder="Enter Flattrade API Key"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">API Secret</label>
+                  <input 
+                    type="password" 
+                    value={localApiSecret}
+                    onChange={(e) => setLocalApiSecret(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-black/30 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    placeholder="Enter Flattrade API Secret"
+                  />
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="flex-1 py-3 px-4 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-medium transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSettings}
+                    className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-all shadow-lg shadow-blue-600/30"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Activity className="text-white" size={40} />
+              </div>
+              <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Pro Algo Trading</h1>
+              <p className="text-slate-600 dark:text-slate-400 mb-8">Connect your Flattrade account to access the trading terminal.</p>
+              
+              <button
+                onClick={handleLogin}
+                className="w-full py-4 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-lg transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 flex items-center justify-center gap-2"
+              >
+                <Wallet size={20} />
+                Connect Flattrade
+              </button>
+              
+              <p className="mt-6 text-sm text-slate-500 dark:text-slate-500">
+                Token is valid until 6 AM the next day.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
