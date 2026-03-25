@@ -40,10 +40,26 @@ const dummyChartData = [
 ];
 
 export default function App() {
+  const getLocalStorage = (key: string) => {
+    try {
+      return localStorage.getItem(key) || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const setLocalStorage = (key: string, value: string) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn('localStorage is not available');
+    }
+  };
+
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [localApiKey, setLocalApiKey] = useState(localStorage.getItem('flattrade_api_key') || '');
-  const [localApiSecret, setLocalApiSecret] = useState(localStorage.getItem('flattrade_api_secret') || '');
+  const [localApiKey, setLocalApiKey] = useState(getLocalStorage('flattrade_api_key'));
+  const [localApiSecret, setLocalApiSecret] = useState(getLocalStorage('flattrade_api_secret'));
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [marginData, setMarginData] = useState<any>(null);
   const [niftyData, setNiftyData] = useState<any>(null);
@@ -106,12 +122,20 @@ export default function App() {
     }
   };
 
+  const setCookie = (name: string, value: string) => {
+    try {
+      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=3600; SameSite=None; Secure`;
+    } catch (e) {
+      console.warn('Cookies are not available');
+    }
+  };
+
   const handleLogin = async () => {
     try {
       if (localApiKey && localApiSecret) {
         // Use local storage keys first
-        document.cookie = `flattrade_api_key=${encodeURIComponent(localApiKey)}; path=/; max-age=3600`;
-        document.cookie = `flattrade_api_secret=${encodeURIComponent(localApiSecret)}; path=/; max-age=3600`;
+        setCookie('flattrade_api_key', localApiKey);
+        setCookie('flattrade_api_secret', localApiSecret);
         window.location.href = `https://auth.flattrade.in/?app_key=${localApiKey}`;
         return;
       }
@@ -132,8 +156,8 @@ export default function App() {
   };
 
   const saveSettings = () => {
-    localStorage.setItem('flattrade_api_key', localApiKey);
-    localStorage.setItem('flattrade_api_secret', localApiSecret);
+    setLocalStorage('flattrade_api_key', localApiKey);
+    setLocalStorage('flattrade_api_secret', localApiSecret);
     setShowSettings(false);
   };
 
