@@ -5,10 +5,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Try loading from current working directory
+const result = dotenv.config({ override: true });
+if (result.error) {
+  console.error("Dotenv failed to load:", result.error);
+  // Fallback for when running from dist/
+  dotenv.config({ path: path.join(__dirname, '../.env'), override: true });
+}
 
 async function startServer() {
   const app = express();
