@@ -4,16 +4,25 @@ import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Try loading from current working directory
-const result = dotenv.config({ override: true });
-if (result.error) {
-  console.error("Dotenv failed to load:", result.error);
-  // Fallback for when running from dist/
-  dotenv.config({ path: path.join(__dirname, '../.env'), override: true });
+// Try loading from multiple possible locations
+const envPaths = [
+  path.join(process.cwd(), '.env'),
+  path.join(__dirname, '.env'),
+  path.join(__dirname, '../.env'),
+  '/home/ubuntu/gais/.env',
+  '/home/ubuntu/.env'
+];
+
+for (const envPath of envPaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: true });
+    console.log(`Loaded env from ${envPath}`);
+  }
 }
 
 async function startServer() {
@@ -30,6 +39,28 @@ async function startServer() {
   // API routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/api/debug-env', (req, res) => {
+    const fs = require('fs');
+    const cwd = process.cwd();
+    const envPath = path.join(cwd, '.env');
+    const envExists = fs.existsSync(envPath);
+    const envContent = envExists ? fs.readFileSync(envPath, 'utf8') : null;
+    const distEnvPath = path.join(__dirname, '../.env');
+    const distEnvExists = fs.existsSync(distEnvPath);
+    
+    res.json({ 
+      cwd, 
+      __dirname, 
+      envExists, 
+      distEnvExists,
+      envPath,
+      distEnvPath,
+      hasFlattradeKey: !!process.env.FLATTRADE_API_KEY,
+      keys: Object.keys(process.env).filter(k => k.includes('FLATTRADE')),
+      envContent: envContent ? envContent.substring(0, 20) + '...' : null
+    });
   });
 
   app.get('/api/auth/url', (req, res) => {
