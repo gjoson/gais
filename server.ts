@@ -63,8 +63,29 @@ async function startServer() {
     });
   });
 
+  // Helper to get env var, bypassing process.env cache if needed
+  const getEnvVar = (key: string): string | undefined => {
+    if (process.env[key]) return process.env[key];
+    
+    // Fallback: manually parse .env files
+    for (const envPath of envPaths) {
+      if (fs.existsSync(envPath)) {
+        try {
+          const content = fs.readFileSync(envPath, 'utf8');
+          const match = content.match(new RegExp(`^\\s*(?:(?:export|set)\\s+)?${key}\\s*=\\s*["']?(.*?)["']?\\s*$`, 'm'));
+          if (match && match[1]) {
+            return match[1].trim();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    return undefined;
+  };
+
   app.get('/api/auth/url', (req, res) => {
-    const apiKey = process.env.FLATTRADE_API_KEY;
+    const apiKey = getEnvVar('FLATTRADE_API_KEY');
     if (!apiKey) {
       return res.status(500).json({ error: 'FLATTRADE_API_KEY not configured' });
     }
@@ -84,8 +105,8 @@ async function startServer() {
       flattradeUid = clientUid;
     }
 
-    const apiKey = process.env.FLATTRADE_API_KEY;
-    const apiSecret = process.env.FLATTRADE_API_SECRET;
+    const apiKey = getEnvVar('FLATTRADE_API_KEY');
+    const apiSecret = getEnvVar('FLATTRADE_API_SECRET');
 
     if (!apiKey || !apiSecret) {
       return res.status(500).send('API credentials not configured');
